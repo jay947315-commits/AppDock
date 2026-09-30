@@ -1,0 +1,150 @@
+const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const rootDir = __dirname;
+const uploadsDir = path.join(rootDir, 'uploads');
+const dataDir = path.join(rootDir, 'data');
+const metadataFile = path.join(dataDir, 'apps.json');
+
+function ensureFolder(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function readApps() {
+  try {
+    const raw = fs.readFileSync(metadataFile, 'utf8');
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function writeApps(apps) {
+  fs.writeFileSync(metadataFile, JSON.stringify(apps, null, 2));
+}
+
+ensureFolder(uploadsDir);
+ensureFolder(dataDir);
+if (!fs.existsSync(metadataFile)) {
+  writeApps([]);
+}
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const safeBase = file.originalname.replace(/\.[^/.]+$/, '').replace(/[^a-zA-Z0-9-_]/g, '_');
+    const uniqueName = `${Date.now()}-${safeBase}${extension}`;
+    cb(null, uniqueName);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: 200 * 1024 * 1024
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/vnd.android.package-archive' || path.extname(file.originalname).toLowerCase() === '.apk') {
+      cb(null, true);
+      return;
+    }
+
+    cb(new Error('Only APK files are allowed.'));
+  }
+});
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(rootDir, 'public')));
+
+app.get('/api/health', (req, res) => {
+  res.json({ ok: true, message: 'AppDock is running' });
+});
+
+app.get('/api/apps', (req, res) => {
+  const apps = readApps().sort((a, b) => new Date(b.uploadedAt) - new Date(a.uploadedAt));
+  res.json(apps.map((app) => ({
+    ...app,
+    downloadUrl: `/api/download/${app.id}`
+  })));
+});
+
+app.post('/api/upload', (req, res) => {
+  upload.single('apkFile')(req, res, (error) => {
+    if (error) {
+      return res.status(400).json({ message: error.message || 'Upload failed.' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: 'Please select an APK file.' });
+    }
+
+    const appName = (req.body.appName || req.file.originalname.replace(/\.[^/.]+$/, '') || 'Untitled App').trim();
+    const version = (req.body.version || '1.0.0').trim();
+    const packageName = (req.body.packageName || '').trim();
+    const description = (req.body.description || '').trim();
+
+    const newApp = {
+      id: crypto.randomUUID(),
+      appName,
+      version,
+      packageName,
+      description,
+      fileName: req.file.originalname,
+      storedName: req.file.filename,
+      size: req.file.size,
+      uploadedAt: new Date().toISOString()
+    };
+
+    const apps = readApps();
+    apps.unshift(newApp);
+    writeApps(apps);
+
+    res.status(201).json({
+      message: 'APK uploaded successfully.',
+      app: {
+        ...newApp,
+        downloadUrl: `/api/download/${newApp.id}`
+      }
+    });
+  });
+});
+
+app.get('/api/download/:id', (req, res) => {
+  const apps = readApps();
+  const app = apps.find((item) => item.id === req.params.id);
+
+  if (!app) {
+    return res.status(404).json({ message: 'APK not found.' });
+  }
+
+  const targetPath = path.join(uploadsDir, app.storedName);
+
+  if (!fs.existsSync(targetPath)) {
+    return res.status(404).json({ message: 'File no longer exists on disk.' });
+  }
+
+  res.download(targetPath, app.fileName);
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(rootDir, 'public', 'index.html'));
+});
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ message: 'Something went wrong on the server.' });
+});
+
+app.listen(PORT, () => {
+  console.log(`AppDock running on http://localhost:${PORT}`);
+});

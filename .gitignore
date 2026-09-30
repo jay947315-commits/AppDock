@@ -1,0 +1,90 @@
+const uploadForm = document.getElementById('uploadForm');
+const uploadMessage = document.getElementById('uploadMessage');
+const appList = document.getElementById('appList');
+
+async function loadApps() {
+  try {
+    const response = await fetch('/api/apps');
+    if (!response.ok) {
+      throw new Error('Unable to load APKs.');
+    }
+
+    const apps = await response.json();
+    renderApps(apps);
+  } catch (error) {
+    appList.innerHTML = `<div class="empty-state">${error.message}</div>`;
+  }
+}
+
+function renderApps(apps) {
+  if (!apps.length) {
+    appList.innerHTML = '<div class="empty-state">No APKs uploaded yet.</div>';
+    return;
+  }
+
+  appList.innerHTML = apps.map((app) => `
+    <article class="app-item">
+      <div class="app-top">
+        <div>
+          <div class="app-name">${escapeHtml(app.appName)}</div>
+          <div class="app-meta">${escapeHtml(app.version)} · ${escapeHtml(app.packageName || 'No package')}</div>
+        </div>
+        <span class="app-tag">APK</span>
+      </div>
+
+      <div class="app-description">${escapeHtml(app.description || 'No description provided.')}</div>
+
+      <div class="app-footer">
+        <div class="app-meta">Uploaded ${new Date(app.uploadedAt).toLocaleString()}</div>
+        <a class="app-download" href="${app.downloadUrl}">Download</a>
+      </div>
+    </article>
+  `).join('');
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+uploadForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const formData = new FormData(uploadForm);
+  const submitButton = uploadForm.querySelector('button[type="submit"]');
+
+  submitButton.disabled = true;
+  submitButton.textContent = 'Uploading...';
+  uploadMessage.textContent = '';
+  uploadMessage.className = 'message';
+
+  try {
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.message || 'Upload failed.');
+    }
+
+    uploadMessage.textContent = result.message;
+    uploadMessage.classList.add('success');
+    uploadForm.reset();
+    await loadApps();
+  } catch (error) {
+    uploadMessage.textContent = error.message;
+    uploadMessage.classList.add('error');
+  } finally {
+    submitButton.disabled = false;
+    submitButton.textContent = 'Upload APK';
+  }
+});
+
+loadApps();

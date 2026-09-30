@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AppDock</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <div class="brand-wrap">
+          <div class="brand-mark">A</div>
+          <div>
+            <p class="eyebrow">APK Portal</p>
+            <h1>AppDock</h1>
+          </div>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="upload-card card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Upload</p>
+              <h2>Publish a new APK</h2>
+            </div>
+          </div>
+
+          <form id="uploadForm" class="upload-form">
+            <div class="field-grid">
+              <label>
+                <span>App name</span>
+                <input type="text" name="appName" placeholder="My Android App" required />
+              </label>
+
+              <label>
+                <span>Version</span>
+                <input type="text" name="version" placeholder="1.0.0" required />
+              </label>
+
+              <label class="full-width">
+                <span>Package name</span>
+                <input type="text" name="packageName" placeholder="com.example.myapp" />
+              </label>
+
+              <label class="full-width">
+                <span>Description</span>
+                <textarea name="description" rows="4" placeholder="Short description of the app..."></textarea>
+              </label>
+
+              <label class="full-width file-picker">
+                <span>APK file</span>
+                <input type="file" name="apkFile" accept=".apk,application/vnd.android.package-archive" required />
+              </label>
+            </div>
+
+            <button type="submit" class="primary-btn">Upload APK</button>
+          </form>
+
+          <div id="uploadMessage" class="message" aria-live="polite"></div>
+        </section>
+
+        <section class="list-card card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Library</p>
+              <h2>Uploaded apps</h2>
+            </div>
+          </div>
+
+          <div id="appList" class="app-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script src="/script.js"></script>
+  </body>
+</html>
